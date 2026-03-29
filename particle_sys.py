@@ -1,58 +1,51 @@
 #!/usr/bin/env python3
-"""2D particle system with emitters, forces, and rendering."""
-import sys,math,random,time
+"""Particle System - Emit, update, and render particles with physics."""
+import sys, random, math
 
 class Particle:
-    def __init__(self,x,y,vx=0,vy=0,life=2.0,size=1,color=None):
-        self.x=x;self.y=y;self.vx=vx;self.vy=vy;self.life=life;self.max_life=life
-        self.size=size;self.color=color or(255,200,50);self.alive=True
+    def __init__(self, x, y, vx, vy, life=1.0, color="*"):
+        self.x=x;self.y=y;self.vx=vx;self.vy=vy;self.life=life;self.age=0;self.color=color
+    def update(self, dt, gravity=9.8):
+        self.vy += gravity * dt; self.x += self.vx * dt; self.y += self.vy * dt; self.age += dt
+    @property
+    def alive(self): return self.age < self.life
 
 class Emitter:
-    def __init__(self,x,y,rate=10,spread=0.5,speed=3,life=2.0):
-        self.x=x;self.y=y;self.rate=rate;self.spread=spread
-        self.speed=speed;self.life=life;self.angle=math.pi/2;self.accum=0
-    def emit(self,dt):
-        self.accum+=self.rate*dt;particles=[]
-        while self.accum>=1:
-            self.accum-=1;a=self.angle+random.uniform(-self.spread,self.spread)
-            s=self.speed*random.uniform(0.5,1.5)
-            particles.append(Particle(self.x,self.y,math.cos(a)*s,-math.sin(a)*s,
-                self.life*random.uniform(0.5,1.5)))
+    def __init__(self, x, y, rate=10, spread=1.0, speed=5.0, life=2.0):
+        self.x=x;self.y=y;self.rate=rate;self.spread=spread;self.speed=speed;self.life=life;self.accum=0
+    def emit(self, dt):
+        self.accum += self.rate * dt; particles = []
+        while self.accum >= 1:
+            angle = random.uniform(-self.spread, self.spread) + math.pi/2
+            spd = self.speed * random.uniform(0.5, 1.5)
+            particles.append(Particle(self.x, self.y, math.cos(angle)*spd, -math.sin(angle)*spd, self.life))
+            self.accum -= 1
         return particles
 
-class ParticleSystem:
-    def __init__(self):
-        self.particles=[];self.emitters=[];self.gravity=(0,2);self.wind=(0,0)
-    def add_emitter(self,e):self.emitters.append(e)
-    def update(self,dt):
-        for e in self.emitters:self.particles.extend(e.emit(dt))
-        for p in self.particles:
-            p.vx+=self.gravity[0]*dt+self.wind[0]*dt
-            p.vy+=self.gravity[1]*dt+self.wind[1]*dt
-            p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt
-            if p.life<=0:p.alive=False
-        self.particles=[p for p in self.particles if p.alive]
-    def render_ascii(self,w=60,h=25):
-        grid=[[" "]*w for _ in range(h)]
-        chars="·∘○●"
-        for p in self.particles:
-            px,py=int(p.x),int(p.y)
-            if 0<=px<w and 0<=py<h:
-                age=1-p.life/p.max_life
-                ci=min(int(age*len(chars)),len(chars)-1)
-                grid[py][px]=chars[ci]
-        return "\n".join("".join(r) for r in grid)
+def simulate(emitter, steps=30, dt=0.1, width=60, height=20):
+    particles = []; frames = []
+    for step in range(steps):
+        particles.extend(emitter.emit(dt))
+        for p in particles: p.update(dt)
+        particles = [p for p in particles if p.alive and 0<=p.x<width and 0<=p.y<height]
+        grid = [["."]*width for _ in range(height)]
+        for p in particles:
+            r, c = int(p.y), int(p.x)
+            if 0<=r<height and 0<=c<width:
+                frac = 1 - p.age/p.life
+                grid[r][c] = "*" if frac > 0.6 else "+" if frac > 0.3 else "."
+        frames.append((step, len(particles), ["".join(r) for r in grid]))
+    return frames
 
 def main():
+    random.seed(42)
+    em = Emitter(30, 18, rate=20, spread=0.8, speed=15, life=1.5)
+    frames = simulate(em, steps=15)
     print("=== Particle System ===\n")
-    ps=ParticleSystem();ps.gravity=(0,5)
-    ps.add_emitter(Emitter(30,20,rate=50,spread=0.8,speed=8,life=1.5))
-    ps.add_emitter(Emitter(15,22,rate=30,spread=0.3,speed=6,life=1.0))
-    for step in range(20):
-        ps.update(0.1)
-        if step%5==0:
-            print(f"Step {step}: {len(ps.particles)} particles")
-            print(ps.render_ascii());print()
-    print(f"Final: {len(ps.particles)} active particles")
+    for step, count, grid in frames[::3]:
+        print(f"Step {step} ({count} particles):")
+        for row in grid: print(f"  {row}")
+        print()
 
-if __name__=="__main__":main()
+if __name__ == "__main__":
+    main()

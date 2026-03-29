@@ -1,6 +1,6 @@
-# Particle System
+# particle-system
 
-Particle System — zero-dependency, single-file Python CLI.
+Particle System Simulator. Zero-dependency, single-file Python CLI.
 
 ## Usage
 
