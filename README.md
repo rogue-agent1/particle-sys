@@ -1,9 +1,14 @@
-# Particle System
+# particle-sys
 
-Particle System — zero-dependency Python implementation.
+Particle system simulator
 
 ## Usage
 
 ```bash
-python3 particle_sys.py
+python3 particle_sys.py --help
 ```
+
+## Features
+
+- Zero dependencies (Python 3.8+)
+- Single file implementation

@@ -1,43 +1,32 @@
 #!/usr/bin/env python3
-"""2D particle system with emitters, forces, and rendering."""
-import sys, random, math
-
+"""particle_sys - Particle system."""
+import sys,argparse,json,random,math
 class Particle:
-    def __init__(self, x, y, vx, vy, life=1.0, color=0):
-        self.x,self.y,self.vx,self.vy = x,y,vx,vy
-        self.life,self.max_life,self.color = life,life,color
-    def alive(self): return self.life > 0
-
-class ParticleSystem:
-    def __init__(self, x, y, rate=10, spread=30, speed=3, life=2.0):
-        self.x,self.y,self.rate = x,y,rate
-        self.spread,self.speed,self.life = spread,speed,life
-        self.particles = []; self.gravity = 2.0
-    def emit(self, dt):
-        n = int(self.rate * dt + random.random())
-        for _ in range(n):
-            angle = math.radians(-90 + random.uniform(-self.spread, self.spread))
-            spd = self.speed * random.uniform(0.5, 1.5)
-            self.particles.append(Particle(self.x, self.y, math.cos(angle)*spd, math.sin(angle)*spd, self.life))
-    def update(self, dt):
-        self.emit(dt)
-        for p in self.particles:
-            p.vy += self.gravity*dt; p.x += p.vx*dt; p.y += p.vy*dt; p.life -= dt
-        self.particles = [p for p in self.particles if p.alive()]
-    def render(self, w=40, h=20):
-        grid = [['·']*w for _ in range(h)]
-        chars = "█▓▒░"
-        for p in self.particles:
-            ix, iy = int(p.x), int(p.y)
-            if 0<=ix<w and 0<=iy<h:
-                age = 1 - p.life/p.max_life
-                grid[iy][ix] = chars[min(int(age*4), 3)]
-        for row in grid: print("".join(row))
-
+    def __init__(self,x=0,y=0,vx=0,vy=0,life=1.0):self.x=x;self.y=y;self.vx=vx;self.vy=vy;self.life=life
+    def update(self,dt,gravity=0.1):self.vy+=gravity*dt;self.x+=self.vx*dt;self.y+=self.vy*dt;self.life-=dt*0.5
+    def alive(self):return self.life>0
+class Emitter:
+    def __init__(self,x=0,y=0,rate=10,spread=1.0,speed=2.0):
+        self.x=x;self.y=y;self.rate=rate;self.spread=spread;self.speed=speed;self.particles=[]
+    def emit(self):
+        for _ in range(self.rate):
+            angle=random.uniform(-self.spread,self.spread)-math.pi/2
+            speed=random.uniform(self.speed*0.5,self.speed)
+            self.particles.append(Particle(self.x,self.y,math.cos(angle)*speed,math.sin(angle)*speed))
+    def step(self,dt=0.1):
+        self.emit()
+        for p in self.particles:p.update(dt)
+        self.particles=[p for p in self.particles if p.alive()]
 def main():
-    random.seed(42); ps = ParticleSystem(20, 2, rate=20, spread=40, speed=5, life=1.5)
-    for _ in range(30): ps.update(0.05)
-    print(f"Particles: {len(ps.particles)}")
-    ps.render()
-
-if __name__ == "__main__": main()
+    p=argparse.ArgumentParser(description="Particle system")
+    p.add_argument("--steps",type=int,default=50);p.add_argument("--rate",type=int,default=5)
+    p.add_argument("--seed",type=int,default=42)
+    args=p.parse_args()
+    random.seed(args.seed)
+    em=Emitter(rate=args.rate)
+    stats=[]
+    for i in range(args.steps):
+        em.step()
+        stats.append({"step":i,"active":len(em.particles),"avg_life":round(sum(p.life for p in em.particles)/max(1,len(em.particles)),3)})
+    print(json.dumps({"steps":args.steps,"peak_particles":max(s["active"] for s in stats),"final_particles":stats[-1]["active"],"sample":stats[::max(1,args.steps//10)]},indent=2))
+if __name__=="__main__":main()
