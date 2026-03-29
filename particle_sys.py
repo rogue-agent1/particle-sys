@@ -1,51 +1,81 @@
 #!/usr/bin/env python3
-"""Particle System - Emit, update, and render particles with physics."""
-import sys, random, math
+"""particle_sys - Particle system with emitters, forces, and lifecycle."""
+import sys, math, random
 
 class Particle:
-    def __init__(self, x, y, vx, vy, life=1.0, color="*"):
-        self.x=x;self.y=y;self.vx=vx;self.vy=vy;self.life=life;self.age=0;self.color=color
-    def update(self, dt, gravity=9.8):
-        self.vy += gravity * dt; self.x += self.vx * dt; self.y += self.vy * dt; self.age += dt
-    @property
-    def alive(self): return self.age < self.life
+    def __init__(self, x, y, vx, vy, life=1.0, size=1.0, color=(255,255,255)):
+        self.x = x; self.y = y; self.vx = vx; self.vy = vy
+        self.life = life; self.max_life = life; self.size = size; self.color = color
+        self.alive = True
+    def update(self, dt):
+        self.x += self.vx * dt
+        self.y += self.vy * dt
+        self.life -= dt
+        if self.life <= 0:
+            self.alive = False
 
 class Emitter:
-    def __init__(self, x, y, rate=10, spread=1.0, speed=5.0, life=2.0):
-        self.x=x;self.y=y;self.rate=rate;self.spread=spread;self.speed=speed;self.life=life;self.accum=0
-    def emit(self, dt):
-        self.accum += self.rate * dt; particles = []
-        while self.accum >= 1:
-            angle = random.uniform(-self.spread, self.spread) + math.pi/2
-            spd = self.speed * random.uniform(0.5, 1.5)
-            particles.append(Particle(self.x, self.y, math.cos(angle)*spd, -math.sin(angle)*spd, self.life))
-            self.accum -= 1
+    def __init__(self, x, y, rate=10, spread=math.pi/4, speed=50, life=2.0, direction=math.pi/2):
+        self.x = x; self.y = y; self.rate = rate; self.spread = spread
+        self.speed = speed; self.life = life; self.direction = direction
+        self.accumulator = 0
+    def emit(self, dt, rng):
+        self.accumulator += self.rate * dt
+        particles = []
+        while self.accumulator >= 1:
+            angle = self.direction + rng.uniform(-self.spread/2, self.spread/2)
+            speed = self.speed * rng.uniform(0.5, 1.5)
+            vx = math.cos(angle) * speed
+            vy = math.sin(angle) * speed
+            particles.append(Particle(self.x, self.y, vx, vy, self.life * rng.uniform(0.5, 1.5)))
+            self.accumulator -= 1
         return particles
 
-def simulate(emitter, steps=30, dt=0.1, width=60, height=20):
-    particles = []; frames = []
-    for step in range(steps):
-        particles.extend(emitter.emit(dt))
-        for p in particles: p.update(dt)
-        particles = [p for p in particles if p.alive and 0<=p.x<width and 0<=p.y<height]
-        grid = [["."]*width for _ in range(height)]
-        for p in particles:
-            r, c = int(p.y), int(p.x)
-            if 0<=r<height and 0<=c<width:
-                frac = 1 - p.age/p.life
-                grid[r][c] = "*" if frac > 0.6 else "+" if frac > 0.3 else "."
-        frames.append((step, len(particles), ["".join(r) for r in grid]))
-    return frames
+class ParticleSystem:
+    def __init__(self, seed=None):
+        self.particles = []
+        self.emitters = []
+        self.forces = []
+        self.rng = random.Random(seed)
+    def add_emitter(self, emitter):
+        self.emitters.append(emitter)
+    def add_force(self, fx, fy):
+        self.forces.append((fx, fy))
+    def update(self, dt):
+        for e in self.emitters:
+            self.particles.extend(e.emit(dt, self.rng))
+        for p in self.particles:
+            for fx, fy in self.forces:
+                p.vx += fx * dt
+                p.vy += fy * dt
+            p.update(dt)
+        self.particles = [p for p in self.particles if p.alive]
+    @property
+    def count(self):
+        return len(self.particles)
 
-def main():
-    random.seed(42)
-    em = Emitter(30, 18, rate=20, spread=0.8, speed=15, life=1.5)
-    frames = simulate(em, steps=15)
-    print("=== Particle System ===\n")
-    for step, count, grid in frames[::3]:
-        print(f"Step {step} ({count} particles):")
-        for row in grid: print(f"  {row}")
-        print()
+def test():
+    ps = ParticleSystem(seed=42)
+    ps.add_emitter(Emitter(0, 0, rate=100, life=1.0))
+    ps.add_force(0, -9.81)  # gravity
+    for _ in range(100):
+        ps.update(0.016)
+    assert ps.count > 0
+    assert ps.count < 200  # particles die
+    # all alive particles should have life > 0
+    assert all(p.alive and p.life > 0 for p in ps.particles)
+    # particles should have moved
+    assert any(p.y != 0 for p in ps.particles)
+    # without emitter, all die
+    ps2 = ParticleSystem(seed=42)
+    ps2.particles = [Particle(0, 0, 0, 0, life=0.1)]
+    for _ in range(20):
+        ps2.update(0.016)
+    assert ps2.count == 0
+    print("OK: particle_sys")
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "test":
+        test()
+    else:
+        print("Usage: particle_sys.py test")

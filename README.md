@@ -1,13 +1,11 @@
-# particle-system
+# particle-sys
 
-Particle System Simulator. Zero-dependency, single-file Python CLI.
+Particle system with emitters, forces, and lifecycle.
 
 ## Usage
 
 ```bash
-python3 particle_sys.py --help
+python3 particle_sys.py test
 ```
 
-## License
-
-MIT
+Zero dependencies. Python 3.8+.
