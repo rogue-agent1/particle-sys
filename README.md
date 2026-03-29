@@ -1,6 +1,6 @@
-# particle-sys
+# Particle System
 
-Particle system simulator
+Particle System — zero-dependency, single-file Python CLI.
 
 ## Usage
 
@@ -8,7 +8,6 @@ Particle system simulator
 python3 particle_sys.py --help
 ```
 
-## Features
+## License
 
-- Zero dependencies (Python 3.8+)
-- Single file implementation
+MIT

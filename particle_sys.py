@@ -1,32 +1,58 @@
 #!/usr/bin/env python3
-"""particle_sys - Particle system."""
-import sys,argparse,json,random,math
+"""2D particle system with emitters, forces, and rendering."""
+import sys,math,random,time
+
 class Particle:
-    def __init__(self,x=0,y=0,vx=0,vy=0,life=1.0):self.x=x;self.y=y;self.vx=vx;self.vy=vy;self.life=life
-    def update(self,dt,gravity=0.1):self.vy+=gravity*dt;self.x+=self.vx*dt;self.y+=self.vy*dt;self.life-=dt*0.5
-    def alive(self):return self.life>0
+    def __init__(self,x,y,vx=0,vy=0,life=2.0,size=1,color=None):
+        self.x=x;self.y=y;self.vx=vx;self.vy=vy;self.life=life;self.max_life=life
+        self.size=size;self.color=color or(255,200,50);self.alive=True
+
 class Emitter:
-    def __init__(self,x=0,y=0,rate=10,spread=1.0,speed=2.0):
-        self.x=x;self.y=y;self.rate=rate;self.spread=spread;self.speed=speed;self.particles=[]
-    def emit(self):
-        for _ in range(self.rate):
-            angle=random.uniform(-self.spread,self.spread)-math.pi/2
-            speed=random.uniform(self.speed*0.5,self.speed)
-            self.particles.append(Particle(self.x,self.y,math.cos(angle)*speed,math.sin(angle)*speed))
-    def step(self,dt=0.1):
-        self.emit()
-        for p in self.particles:p.update(dt)
-        self.particles=[p for p in self.particles if p.alive()]
+    def __init__(self,x,y,rate=10,spread=0.5,speed=3,life=2.0):
+        self.x=x;self.y=y;self.rate=rate;self.spread=spread
+        self.speed=speed;self.life=life;self.angle=math.pi/2;self.accum=0
+    def emit(self,dt):
+        self.accum+=self.rate*dt;particles=[]
+        while self.accum>=1:
+            self.accum-=1;a=self.angle+random.uniform(-self.spread,self.spread)
+            s=self.speed*random.uniform(0.5,1.5)
+            particles.append(Particle(self.x,self.y,math.cos(a)*s,-math.sin(a)*s,
+                self.life*random.uniform(0.5,1.5)))
+        return particles
+
+class ParticleSystem:
+    def __init__(self):
+        self.particles=[];self.emitters=[];self.gravity=(0,2);self.wind=(0,0)
+    def add_emitter(self,e):self.emitters.append(e)
+    def update(self,dt):
+        for e in self.emitters:self.particles.extend(e.emit(dt))
+        for p in self.particles:
+            p.vx+=self.gravity[0]*dt+self.wind[0]*dt
+            p.vy+=self.gravity[1]*dt+self.wind[1]*dt
+            p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt
+            if p.life<=0:p.alive=False
+        self.particles=[p for p in self.particles if p.alive]
+    def render_ascii(self,w=60,h=25):
+        grid=[[" "]*w for _ in range(h)]
+        chars="·∘○●"
+        for p in self.particles:
+            px,py=int(p.x),int(p.y)
+            if 0<=px<w and 0<=py<h:
+                age=1-p.life/p.max_life
+                ci=min(int(age*len(chars)),len(chars)-1)
+                grid[py][px]=chars[ci]
+        return "\n".join("".join(r) for r in grid)
+
 def main():
-    p=argparse.ArgumentParser(description="Particle system")
-    p.add_argument("--steps",type=int,default=50);p.add_argument("--rate",type=int,default=5)
-    p.add_argument("--seed",type=int,default=42)
-    args=p.parse_args()
-    random.seed(args.seed)
-    em=Emitter(rate=args.rate)
-    stats=[]
-    for i in range(args.steps):
-        em.step()
-        stats.append({"step":i,"active":len(em.particles),"avg_life":round(sum(p.life for p in em.particles)/max(1,len(em.particles)),3)})
-    print(json.dumps({"steps":args.steps,"peak_particles":max(s["active"] for s in stats),"final_particles":stats[-1]["active"],"sample":stats[::max(1,args.steps//10)]},indent=2))
+    print("=== Particle System ===\n")
+    ps=ParticleSystem();ps.gravity=(0,5)
+    ps.add_emitter(Emitter(30,20,rate=50,spread=0.8,speed=8,life=1.5))
+    ps.add_emitter(Emitter(15,22,rate=30,spread=0.3,speed=6,life=1.0))
+    for step in range(20):
+        ps.update(0.1)
+        if step%5==0:
+            print(f"Step {step}: {len(ps.particles)} particles")
+            print(ps.render_ascii());print()
+    print(f"Final: {len(ps.particles)} active particles")
+
 if __name__=="__main__":main()
